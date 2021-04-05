@@ -1,0 +1,104 @@
+#! /usr/bin/env python3
+# -*- coding: utf-8 -*-
+# vim:fenc=utf-8
+#
+# Copyright © 2021 Albert Lv <altair.albert@yahoo.com>
+#
+# Distributed under terms of the MIT license.
+"""
+
+"""
+
+import os
+import subprocess
+import shutil
+
+XDG_CONFIG_PATH = os.environ.get('XDG_CONFIG_PATH')
+HOME = os.environ.get("HOME")
+
+if XDG_CONFIG_PATH is None or XDG_CONFIG_PATH == "":
+    XDG_CONFIG_PATH = HOME + "/.config"
+
+DOTFILE_DIR = XDG_CONFIG_PATH + '/' + 'dotfile'
+
+_LINK_FILE = 'link'
+
+
+def git_exist():
+    completed = subprocess.run(['git', '--version'], capture_output=True)
+    return completed.returncode == 0
+
+
+def init(remote=None):
+    if os.path.exists(DOTFILE_DIR):
+        return True
+    else:
+        os.makedirs(DOTFILE_DIR, 0o744)
+        os.chdir(DOTFILE_DIR)
+        subprocess.run(['git', 'init'])
+        if not remote is None:
+            subprocess.run(['git', 'remote', 'add' 'origin', remote])
+        return True
+
+
+def status():
+    os.chdir(DOTFILE_DIR)
+    subprocess.run(['git', 'status', '-s'])
+
+
+def add(file):
+    if os.path.isfile(file):
+        dir_name = os.path.dirname(file)
+        file_name = os.path.basename(file)
+        if str(dir_name).startswith(HOME):
+            dir_name = dir_name.replace(HOME, '.')
+        dst_dir = DOTFILE_DIR + '/' + dir_name
+        if os.path.exists(dst_dir + '/' + file_name):
+            print("Error, File exists.")
+            return False
+        os.makedirs(dst_dir)
+        return shutil.copy2(file, dst, follow_symlinks=False)
+    else:
+        print("Error, Need one file")
+
+
+def sync(remote=None):
+    os.chdir(DOTFILE_DIR)
+    if not remote is None:
+        subprocess.run(['git', 'clone', remote, '.'])
+    else:
+        subprocess.run(['git', 'pull'])
+
+
+def upload():
+    os.chdir(DOTFILE_DIR)
+    subprocess.run(['git', 'push'])
+
+
+def remove(file):
+    if os.path.isfile(file):
+        dir_name = os.path.dirname(file)
+        file_name = os.path.basename(file)
+        if str(dir_name).startswith(HOME):
+            dir_name = dir_name.replace(HOME, '.')
+        dst_dir = DOTFILE_DIR + '/' + dir_name
+        if os.path.exists(dst_dir + '/' + file_name):
+            shutil.os.remove(dst + '/' + file_name)
+            return True
+        else:
+            print("Error, No file find.")
+            return False
+    else:
+        print("Error, Need one file.")
+
+
+def link(file):
+    pass
+
+
+def unlink(file):
+    pass
+
+
+if __name__ == '__main__':
+    print(status())
