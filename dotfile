@@ -21,9 +21,7 @@ HOME = os.environ.get("HOME")
 if XDG_CONFIG_PATH is None or XDG_CONFIG_PATH == "":
     XDG_CONFIG_PATH = HOME + "/.config"
 
-# DOTFILE_DIR = XDG_CONFIG_PATH + '/' + 'dotfile'
-
-DOTFILE_DIR = '.'
+DOTFILE_DIR = XDG_CONFIG_PATH + '/' + 'dotfile'
 
 
 def git_exist():
@@ -31,10 +29,12 @@ def git_exist():
     return completed.returncode == 0
 
 
+def is_repo():
+    return os.path.exists(DOTFILE_DIR)
+
+
 def init(remote=None):
-    if os.path.exists(DOTFILE_DIR):
-        return True
-    else:
+    if not is_repo():
         os.makedirs(DOTFILE_DIR, 0o744, exist_ok=True)
         os.chdir(DOTFILE_DIR)
         subprocess.run(['git', 'init'])
@@ -43,29 +43,45 @@ def init(remote=None):
         return True
 
 
+def diff():
+    if is_repo():
+        os.chdir(DOTFILE_DIR)
+        subprocess.run(['git', 'diff'])
+
+
 def status():
-    os.chdir(DOTFILE_DIR)
-    subprocess.run(['git', 'status', '-s'])
+    if is_repo():
+        os.chdir(DOTFILE_DIR)
+        ouput = subprocess.run(['git', 'status', '-s'])
+        if ouput.stdout is None:
+            print("Everything is update!")
+    else:
+        print("Error, not a repo, init or sync from remote first")
 
 
 def add(file):
-    file = os.path.abspath(file)
-    if os.path.isfile(file):
-        dir_name = os.path.dirname(file)
-        file_name = os.path.basename(file)
-        if str(dir_name).startswith(HOME):
-            dir_name = dir_name.replace(HOME, '.')
-        dst_dir = DOTFILE_DIR + '/' + dir_name
-        if os.path.exists(dst_dir + '/' + file_name):
-            print("Error, File exists.")
-            return False
-        os.makedirs(dst_dir, 0o755, exist_ok=True)
-        return shutil.copy(file, dst_dir, follow_symlinks=False)
+    if is_repo():
+        file = os.path.abspath(file)
+        if os.path.isfile(file):
+            dir_name = os.path.dirname(file)
+            file_name = os.path.basename(file)
+            if str(dir_name).startswith(HOME):
+                dir_name = dir_name.replace(HOME, '.')
+            dst_dir = DOTFILE_DIR + '/' + dir_name
+            if os.path.exists(dst_dir + '/' + file_name):
+                print("Error, File exists.")
+                return False
+            os.makedirs(dst_dir, 0o755, exist_ok=True)
+            return shutil.copy(file, dst_dir, follow_symlinks=False)
+        else:
+            print("Error, Need one file")
     else:
-        print("Error, Need one file")
+        print("Error, not a repo")
 
 
 def sync(remote=None):
+    if not os.path.exists(DOTFILE_DIR):
+        os.makedirs(DOTFILE_DIR, 0o755)
     os.chdir(DOTFILE_DIR)
     if not remote is None:
         subprocess.run(['git', 'clone', remote, '.'])
@@ -74,82 +90,93 @@ def sync(remote=None):
 
 
 def upload():
-    os.chdir(DOTFILE_DIR)
-    completed = subprocess.run(['git', 'status', '-s'],
-                               encoding='utf-8',
-                               capture_output=True)
-    if completed.returncode == 0:
-        if not completed.stdout is None:
-            lines = completed.stdout.splitlines(False)
-            files = [line.split(' ')[-1] for line in lines]
-            if len(files) > 0:
-                subprocess.run(['git', 'add', '.'])
-                subprocess.run([
-                    'git', 'commit', '-m',
-                    ','.join(map(lambda x: os.path.basename(x), files))
-                ])
+    if is_repo():
+        os.chdir(DOTFILE_DIR)
+        completed = subprocess.run(['git', 'status', '-s'],
+                                   encoding='utf-8',
+                                   capture_output=True)
+        if completed.returncode == 0:
+            if not completed.stdout is None:
+                lines = completed.stdout.splitlines(False)
+                files = [line.split(' ')[-1] for line in lines]
+                if len(files) > 0:
+                    subprocess.run(['git', 'add', '.'])
+                    subprocess.run([
+                        'git', 'commit', '-m',
+                        ','.join(map(lambda x: os.path.basename(x), files))
+                    ])
+                else:
+                    return
             else:
+                print("No File change.")
                 return
-        else:
-            print("No File change.")
-            return
 
-    if subprocess.run(['git', 'remote', 'show', 'origin'],
-                      capture_output=True).returncode == 0:
-        subprocess.run(['git', 'push'])
+        if subprocess.run(['git', 'remote', 'show', 'origin'],
+                          capture_output=True).returncode == 0:
+            subprocess.run(['git', 'push'])
 
 
 def remove(file):
-    if not unlink(file):
-        return False
-    file = os.path.abspath(file)
-    dir_name = os.path.dirname(file)
-    file_name = os.path.basename(file)
-    if str(dir_name).startswith(HOME):
-        dir_name = dir_name.replace(HOME, '.')
-
-    dst_dir = DOTFILE_DIR + '/' + dir_name
-    if os.path.exists(dst_dir + '/' + file_name):
-        return subprocess.run(['git', 'rm', dst_dir + '/' + file_name,
-                               '-f']).returncode == 0
-    else:
-        print("Error, No file find.")
-        return False
-
-
-def link(file):
-    dir_name = os.path.dirname(file)
-    file_name = os.path.basename(file)
-    if str(dir_name).startswith(HOME):
-        dir_name = dir_name.replace(HOME, '.')
-
-    dst_dir = DOTFILE_DIR + '/' + dir_name
-    store_file = os.path.abspath(dst_dir + '/' + file_name)
-    if os.path.exists(store_file):
-        os.symlink(store_file, file)
-        return True
-    else:
-        print("Error, No file find, use add command first.")
-        return False
-
-
-def unlink(file):
-    file = os.path.abspath(file)
-    if os.path.islink(file):
+    if is_repo():
+        if not unlink(file):
+            return False
+        file = os.path.abspath(file)
         dir_name = os.path.dirname(file)
         file_name = os.path.basename(file)
         if str(dir_name).startswith(HOME):
             dir_name = dir_name.replace(HOME, '.')
+
         dst_dir = DOTFILE_DIR + '/' + dir_name
         if os.path.exists(dst_dir + '/' + file_name):
-            os.unlink(file)
-            shutil.copy(dst_dir + '/' + file_name, file)
+            return subprocess.run(
+                ['git', 'rm', dst_dir + '/' + file_name, '-f']).returncode == 0
+        else:
+            print("Error, No file find.")
+            return False
+
+
+def link(file):
+    if is_repo():
+        dir_name = os.path.dirname(file)
+        file_name = os.path.basename(file)
+        if str(dir_name).startswith(HOME):
+            dir_name = dir_name.replace(HOME, '.')
+
+        dst_dir = DOTFILE_DIR + '/' + dir_name
+        store_file = os.path.abspath(dst_dir + '/' + file_name)
+        if os.path.exists(store_file):
+            if os.path.exists(file):
+                overwrite = input("File is exists, Overwrite(Y/n)? ")
+                if overwrite == 'Y' or overwrite == 'y':
+                    os.remove(file)
+                else:
+                    print("Cancel by user!")
+                    return False
+            os.symlink(store_file, file)
             return True
         else:
             print("Error, No file find, use add command first.")
             return False
-    else:
-        print("Error, Need one file without link.")
+
+
+def unlink(file):
+    if is_repo():
+        file = os.path.abspath(file)
+        if os.path.islink(file):
+            dir_name = os.path.dirname(file)
+            file_name = os.path.basename(file)
+            if str(dir_name).startswith(HOME):
+                dir_name = dir_name.replace(HOME, '.')
+            dst_dir = DOTFILE_DIR + '/' + dir_name
+            if os.path.exists(dst_dir + '/' + file_name):
+                os.unlink(file)
+                shutil.copy(dst_dir + '/' + file_name, file)
+                return True
+            else:
+                print("Error, No file find, use add command first.")
+                return False
+        else:
+            print("Error, Need one file without link.")
 
 
 def init_cmd_paser():
@@ -169,18 +196,6 @@ def cmd_paser():
                         action='version',
                         version=__VERSION__,
                         help='show version')
-    # parser.add_argument('add', required=False, help='add file to dotfile')
-    # parser.add_argument('status',
-    # required=False,
-    # help='display dotfile status')
-    # parser.add_argument('upload',
-    # required=False,
-    # help='upload dotfile to remote')
-    # parser.add_argument('sync', required=False, help='sync dotfile for remote')
-    # parser.add_argument('link', required=False, help='link file to dotfile')
-    # parser.add_argument('unlink',
-    # required=False,
-    # help='remove link to dotfile')
     return parser.parse_args()
 
 
@@ -189,6 +204,7 @@ if __name__ == '__main__':
     action = {
         'status': status,
         'init': init,
+        'diff': diff,
         'upload': upload,
         'remove': remove,
         'add': add,
