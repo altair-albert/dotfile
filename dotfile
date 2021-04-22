@@ -33,16 +33,6 @@ def is_repo():
     return os.path.exists(DOTFILE_DIR)
 
 
-def init(remote=None):
-    if not is_repo():
-        os.makedirs(DOTFILE_DIR, 0o744, exist_ok=True)
-        os.chdir(DOTFILE_DIR)
-        subprocess.run(['git', 'init'])
-        if not remote is None:
-            subprocess.run(['git', 'remote', 'add' 'origin', remote])
-        return True
-
-
 def diff():
     if is_repo():
         os.chdir(DOTFILE_DIR)
@@ -203,7 +193,6 @@ if __name__ == '__main__':
     args = cmd_paser()
     action = {
         'status': status,
-        'init': init,
         'diff': diff,
         'upload': upload,
         'remove': remove,

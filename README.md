@@ -4,7 +4,7 @@ a tool for manage dotfile for linux
 
 # How to use
 
-```
+```bash
 dotfile cmd
 ```
 
@@ -12,7 +12,6 @@ dotfile cmd
 
 |name | describe|
 |-----|---------|
-|init | init locale repo|
 |sync | download from remote repo|
 |upload| push change to remote repo, auto save all change|
 |add  | add locale file to manage |
